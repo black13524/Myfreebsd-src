@@ -47,6 +47,14 @@ static char sccsid[] = "@(#)tftpd.c	8.1 (Berkeley) 6/4/93";
  * This version includes many modifications by Jim Guyton
  * <guyton@rand-unix>.
  */
+#define WITH_CASPER
+#include <sys/nv.h>
+#include <libcasper.h>
+#include <sys/capsicum.h>
+#include <casper/cap_dns.h>
+#include <capsicum_helpers.h>
+#include <err.h>
+
 
 #include <sys/param.h>
 #include <sys/ioctl.h>
@@ -625,6 +633,7 @@ find_next_name(char *filename, int *fd)
 	struct tm lt;
 	char yyyymmdd[MAXPATHLEN];
 	char newname[MAXPATHLEN];
+	cap_rights_t rights;
 
 	/* Create the YYYYMMDD part of the filename */
 	time(&tval);
@@ -648,10 +657,13 @@ find_next_name(char *filename, int *fd)
 	/* Find the first file which doesn't exist */
 	for (i = 0; i < 100; i++) {
 		sprintf(newname, "%s.%s.%02d", filename, yyyymmdd, i);
-		*fd = open(newname,
+		*fd = open(newname,   
 		    O_WRONLY | O_CREAT | O_EXCL,
 		    S_IRUSR | S_IWUSR | S_IRGRP |
 		    S_IWGRP | S_IROTH | S_IWOTH);
+		cap_rights_init(&rights, CAP_FSTAT, CAP_READ);
+		if(caph_rights_limit(*fd,&rights) < 0)
+			err(1, "unable to limit rights for %s", "stdin");
 		if (*fd > 0)
 			return 0;
 	}
@@ -679,6 +691,7 @@ validate_access(int peer, char **filep, int mode)
 	struct dirlist *dirp;
 	static char pathname[MAXPATHLEN];
 	char *filename = *filep;
+	cap_rights_t rights;
 
 	/*
 	 * Prevent tricksters from getting around the directory restrictions
@@ -760,21 +773,33 @@ validate_access(int peer, char **filep, int mode)
 	 */
 	option_tsize(peer, NULL, mode, &stbuf);
 
-	if (mode == RRQ)
+	if (mode == RRQ){
 		fd = open(filename, O_RDONLY);
-	else {
+		cap_rights_init(&rights, CAP_FSTAT, CAP_READ);
+		if(caph_rights_limit(fd, &rights) < 0)
+			err(1,"unable to limit rights for %s", "stdin");
+	} else {
 		if (create_new) {
 			if (increase_name) {
 				error = find_next_name(filename, &fd);
 				if (error > 0)
 					return (error + 100);
-			} else
+			} else {
 				fd = open(filename,
 				    O_WRONLY | O_TRUNC | O_CREAT,
 				    S_IRUSR | S_IWUSR | S_IRGRP |
 				    S_IWGRP | S_IROTH | S_IWOTH );
-		} else
+				cap_rights_init(&rights, CAP_WRITE,CAP_CREATE);
+				if(caph_rights_limit(fd, &rights) < 0)
+					err(1,"unable to limit rights for %s","stdio");
+
+			}
+		} else {
 			fd = open(filename, O_WRONLY | O_TRUNC);
+			cap_rights_init(&rights, CAP_FSTAT, CAP_WRITE);
+			if(caph_rights_limit(fd,&rights) < 0)
+				err(1, "unable to limit rights for %s", "stdout");
+		}
 	}
 	if (fd < 0)
 		return (errno + 100);
