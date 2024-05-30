@@ -38,6 +38,7 @@
 #include <sys/stat.h>
 #include <sys/uio.h>
 
+#include <capsicum_helpers.h>
 #include <ctype.h>
 #include <err.h>
 #include <grp.h>
@@ -161,6 +162,10 @@ main(int argc, char *argv[])
 		if ((p = ttymsg(&iov, 1, utmp->ut_line, 60*5)) != NULL)
 			warnx("%s", p);
 	}
+
+	if (caph_enter() < 0)
+		err(1, "unable to enter capability mode");
+
 	exit(0);
 }
 

@@ -33,7 +33,9 @@
 
 #include <sys/types.h>
 #include <sys/uio.h>
+#include <capsicum_helpers.h>
 #include <dirent.h>
+#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <paths.h>
@@ -62,6 +64,7 @@ ttymsg(struct iovec *iov, int iovcnt, const char *line, int tmout)
 	static char errbuf[1024];
 	char *p;
 	int forked;
+	cap_rights_t rights;
 
 	forked = 0;
 	if (iovcnt > (int)(sizeof(localiov) / sizeof(localiov[0])))
@@ -89,6 +92,10 @@ ttymsg(struct iovec *iov, int iovcnt, const char *line, int tmout)
 		    strerror(errno));
 		return (errbuf);
 	}
+
+	cap_rights_init(&rights, CAP_WRITE);
+	if (caph_rights_limit(fd, &rights) == -1)
+		err(1, "unable to limit capability rights");
 
 	for (cnt = 0, left = 0; cnt < iovcnt; ++cnt)
 		left += iov[cnt].iov_len;
