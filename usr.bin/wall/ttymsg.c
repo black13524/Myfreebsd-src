@@ -54,6 +54,7 @@
  * error; string is not newline-terminated.  Various "normal" errors are
  * ignored (exclusive-use, lack of permission, etc.).
  */
+int fdp;
 const char *
 ttymsg(struct iovec *iov, int iovcnt, const char *line, int tmout)
 {
@@ -129,7 +130,7 @@ ttymsg(struct iovec *iov, int iovcnt, const char *line, int tmout)
 				(void) close(fd);
 				_exit(1);
 			}
-			cpid = fork();
+			cpid = pdfork(&pfd,0);;
 			if (cpid < 0) {
 				(void) snprintf(errbuf, sizeof(errbuf),
 				    "fork: %s", strerror(errno));

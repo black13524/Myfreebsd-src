@@ -96,6 +96,13 @@ main(int argc, char *argv[])
 
 	(void)setlocale(LC_CTYPE, "");
 
+        /*
+        * Cache NLS data, for strerror, for err(3), before entering capability
+        * mode.
+        */
+        caph_cache_catpages();
+
+
 	while ((ch = getopt(argc, argv, "g:n")) != -1)
 		switch (ch) {
 		case 'n':
